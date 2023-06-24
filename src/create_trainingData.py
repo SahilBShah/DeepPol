@@ -1,3 +1,4 @@
+import argparse
 import pandas as pd
 import numpy as np
 from Bio import SeqIO
@@ -5,6 +6,22 @@ import glob
 
 import os
 import shutil
+
+class Command_line_args(object):
+    """
+    This class contains all the arguments the user inputs for the class to run.
+    Input(s):
+    No other inputs needed.
+    Output(s):
+    None.
+    """
+
+    def __init__(self):
+
+        #Command line arguments
+        self.parser = argparse.ArgumentParser()
+        self.parser.add_argument('chromosomes', help='Provide a list of chromosomes to create training data over (include brackets).')
+        self.args = self.parser.parse_args()
 
 def createSeqData(chromosomes, step=200, nuc_context=1000):
     pol3_bed_cols_names = ["Chromosome", "Start", "End", "Name", "Score", "Strand"]
@@ -265,11 +282,13 @@ def createChipData(chromosomes, step=200, nuc_context=1000):
 
 def main():
 
-	all_chroms = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12", "chr13", "chr14",
-	                  "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22", "chrX", "chrY"]
+	# all_chroms = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12", "chr13", "chr14",
+	#                   "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22", "chrX", "chrY"]
 
-	createSeqData(all_chroms, step=200, nuc_context=1000)
-	createChipData(all_chroms, step=200, nuc_context=1000)
+    arguments = Command_line_args()
+
+	createSeqData(arguments.args.chromosomes, step=200, nuc_context=1000)
+	createChipData(arguments.args.chromosomes, step=200, nuc_context=1000)
 
 if __name__ == "__main__":
 	main()
