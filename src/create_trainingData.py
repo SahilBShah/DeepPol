@@ -153,7 +153,7 @@ def createSeqData(chromosomes, step=200, nuc_context=1000):
         shutil.rmtree(dir)
         
         print("Completed {}!".format(chrom))
-        print("Memmap object dimensions:", rows, columns, elements)
+        print("Memmap object dimensions:", rows, cols, elements)
 
     print("Finished creating training data by chromosome!")
 
@@ -288,7 +288,7 @@ def createChipData(chromosomes, step=200, nuc_context=1000):
         shutil.rmtree(dir)
         
         print("Completed {}!".format(chrom))
-        print("Memmap object dimensions:", rows, columns, elements)
+        print("Memmap object dimensions:", rows, cols, elements)
 
     print("Finished creating training data by chromosome!")
 
