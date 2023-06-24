@@ -29,7 +29,7 @@ def createSeqData(chromosomes, step=200, nuc_context=1000):
     for chrom in chromosomes:
         print(chrom+":")
         print("     Creating necessary directories...")
-        output_dir1 = "../data/tmp_seqData/"
+        output_dir1 = "../data/tmp_{}_seqData/".format(chrom)
         output_dir2 = "../data/chr_seqData/"
         if not os.path.exists(output_dir1):
             os.makedirs(output_dir1)
@@ -105,8 +105,8 @@ def createSeqData(chromosomes, step=200, nuc_context=1000):
                 else:
                     training_data = np.append(training_data, training_seq, axis=0)
                 if j % 50 == 0:
-                    np.savez_compressed("../data/tmp_seqData/tmp_{}.npz".format(i), training_data)
-                    file_names.append("../data/tmp_seqData/tmp_{}.npz".format(i))
+                    np.savez_compressed("../data/tmp_{}_seqData/tmp_{}.npz".format(chrom, i), training_data)
+                    file_names.append("../data/tmp_{}_seqData/tmp_{}.npz".format(chrom, i))
                     j = 1
                 else:
                     j+=1
@@ -143,7 +143,7 @@ def createSeqData(chromosomes, step=200, nuc_context=1000):
         np.savez_compressed(fpath2, labels=labels)
         
         #Delete temp directories
-        dir = '../data/tmp_seqData/'
+        dir = '../data/tmp_{}_seqData/'.format(chrom)
         shutil.rmtree(dir)
         
         print("Completed {}!".format(chrom))
@@ -164,7 +164,7 @@ def createChipData(chromosomes, step=200, nuc_context=1000):
     for chrom in chromosomes:
         print(chrom+":")
         print("     Creating necessary directories...")
-        output_dir1 = "../data/tmp_chipData/"
+        output_dir1 = "../data/tmp_{}_chipData/".format(chrom)
         output_dir2 = "../data/chr_chipData/"
         if not os.path.exists(output_dir1):
             os.makedirs(output_dir1)
@@ -240,8 +240,8 @@ def createChipData(chromosomes, step=200, nuc_context=1000):
                     training_data = np.append(training_data, training_seq, axis=0)
                 if j % 50 == 0:
                     
-                    np.savez_compressed("../data/tmp_chipData/tmp_{}.npz".format(i), training_data)
-                    file_names.append("../data/tmp_chipData/tmp_{}.npz".format(i))
+                    np.savez_compressed("../data/tmp_{}_chipData/tmp_{}.npz".format(chrom, i), training_data)
+                    file_names.append("../data/tmp_{}_chipData/tmp_{}.npz".format(chrom, i))
                     j = 1
                 else:
                     j+=1
@@ -272,7 +272,7 @@ def createChipData(chromosomes, step=200, nuc_context=1000):
                     idx += len(chunk)
         
         #Delete temp directories
-        dir = '../data/tmp_chipData/'
+        dir = '../data/tmp_{}_chipData/'.format(chrom)
         shutil.rmtree(dir)
         
         print("Completed {}!".format(chrom))
