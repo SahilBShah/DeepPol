@@ -31,10 +31,16 @@ def createSeqData(chromosomes, step=200, nuc_context=1000):
         print("     Creating necessary directories...")
         output_dir1 = "../data/tmp_{}_seqData/".format(chrom)
         output_dir2 = "../data/chr_seqData/"
-        if not os.path.exists(output_dir1):
-            os.makedirs(output_dir1)
-        if not os.path.exists(output_dir2):
-            os.makedirs(output_dir2)
+        try:
+            if not os.path.exists(output_dir1):
+                os.makedirs(output_dir1)
+        except FileExistsError:
+            continue
+        try:
+            if not os.path.exists(output_dir2):
+                os.makedirs(output_dir2)
+        except FileExistsError:
+            continue
             
         #Process chromosome oe df to create training data
         print("     Processing one-hot encoded dataframe...")
@@ -166,10 +172,16 @@ def createChipData(chromosomes, step=200, nuc_context=1000):
         print("     Creating necessary directories...")
         output_dir1 = "../data/tmp_{}_chipData/".format(chrom)
         output_dir2 = "../data/chr_chipData/"
-        if not os.path.exists(output_dir1):
-            os.makedirs(output_dir1)
-        if not os.path.exists(output_dir2):
-            os.makedirs(output_dir2)
+        try:
+            if not os.path.exists(output_dir1):
+                os.makedirs(output_dir1)
+        except FileExistsError:
+            continue
+        try:
+            if not os.path.exists(output_dir2):
+                os.makedirs(output_dir2)
+        except FileExistsError:
+            continue
             
         #Process chromosome oe df to create training data
         print("     Reading in one-hot encoded dataframe...")
