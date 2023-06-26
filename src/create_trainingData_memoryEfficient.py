@@ -164,6 +164,7 @@ def createChipData(chromosomes, step=200, nuc_context=1000):
     chip_bed_cols_names = ["Chromosome", "Start", "End", "Name", "Score", "Strand", "signalValue", "pValue", "qValue", "peak"]
     for chip in glob.glob("../data/chip_data/*"):
         tmp_chip_df = pd.read_csv(chip, sep="\s+", header=None, names=chip_bed_cols_names)
+        # tmp_chip_df = tmp_chip_df[tmp_chip_df["Chromosome"] == "{}".format("chr1")]
         chip_dfs.append(tmp_chip_df)
         chip_names.append(chip.split("/")[-1].split(".")[0])
     
@@ -191,17 +192,19 @@ def createChipData(chromosomes, step=200, nuc_context=1000):
             
         #Create ChIP df that is ready to be converted to numpy training data
         print("     Processing ChIP data...")
-        chip_df = pd.DataFrame(index=np.arange(chr_df_length)).reset_index().drop(columns="index")
+        chip_df = pd.DataFrame(0., index=np.arange(chr_df_length), columns=chip_names, dtype=np.float32)
         chip_idx = 0
         for chip in chip_dfs:
             tmp_chip_chr_df = chip[chip["Chromosome"] == "{}".format(chrom)]
-            chip_df[chip_names[chip_idx]] = 0.
+            #chip_df[chip_names[chip_idx]] = 0.
             
             for row in range(len(tmp_chip_chr_df)):
                 beg_range = tmp_chip_chr_df.iloc[row]["Start"]
                 end_range = tmp_chip_chr_df.iloc[row]["End"]
                 chip_df.loc[beg_range:end_range, chip_names[chip_idx]] = tmp_chip_chr_df.iloc[row]["signalValue"]
+            #chip_dfs[chip_idx] = 0
             chip_idx+=1
+        del chip_dfs
                         
 
         print("     Creating training data. This may take a while...")
