@@ -204,7 +204,6 @@ def createChipData(chromosomes, step=200, nuc_context=1000):
                 chip_df.loc[beg_range:end_range, chip_names[chip_idx]] = tmp_chip_chr_df.iloc[row]["signalValue"]
             #chip_dfs[chip_idx] = 0
             chip_idx+=1
-        del chip_dfs
                         
 
         print("     Creating training data. This may take a while...")
