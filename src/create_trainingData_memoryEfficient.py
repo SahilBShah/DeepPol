@@ -26,6 +26,7 @@ class Command_line_args(object):
 def createSeqData(chromosomes, step=200, nuc_context=1000):
     pol3_bed_cols_names = ["Chromosome", "Start", "End", "Name", "Score", "Strand"]
     pol3_df = pd.read_csv("../data/polr3d.bed", sep="\s+", header=None, names=pol3_bed_cols_names)
+    rmsk_df = pd.read_csv("../data/mm10_rmsk.bed", sep="\s+", header=None, names=pol3_bed_cols_names)
     for chrom in chromosomes:
         print(chrom+":")
         print("     Creating necessary directories...")
@@ -47,10 +48,15 @@ def createSeqData(chromosomes, step=200, nuc_context=1000):
         chr_df = pd.read_csv("../chroms/oe_chroms/{}.csv".format(chrom))
         chr_df["Label"] = 0
         pol3_chr_df = pol3_df[pol3_df["Chromosome"] == "{}".format(chrom)]
-        for row in range(len(pol3_chr_df)):
+        rmsk_chr_df = rmsk_df[rmsk_df["Chromosome"] == "{}".format(chrom)]
+        for row in range(len(rmsk_chr_df)):
             beg_range = pol3_chr_df.iloc[row]["Start"]
             end_range = pol3_chr_df.iloc[row]["End"]
             chr_df.loc[beg_range:end_range, "Label"] = 1
+        for row in range(len(pol3_chr_df)):
+            beg_range = pol3_chr_df.iloc[row]["Start"]
+            end_range = pol3_chr_df.iloc[row]["End"]
+            chr_df.loc[beg_range:end_range, "Label"] = 2
 
         print("     Creating training data. This may take a while...")
         #Start creating training data
@@ -98,12 +104,20 @@ def createSeqData(chromosomes, step=200, nuc_context=1000):
                 tmp_df = chr_df[start_idx:end_idx]
                 grouped_df = tmp_df.groupby("Label").count().reset_index()
                 try:
-                    if grouped_df[grouped_df["Label"] == 1]["Unnamed: 0"][1] >= 65:
+                    if grouped_df[grouped_df["Label"] == 2]["Unnamed: 0"][2] >= 65:
                         labels.append([1])
+                    elif grouped_df[grouped_df["Label"] == 1]["Unnamed: 0"][2] >= 65:
+                        labels.append([2])
                     else:
                         labels.append([0])
                 except KeyError:
-                    labels.append([0])
+                    try:
+                        if grouped_df[grouped_df["Label"] == 1]["Unnamed: 0"][2] >= 65:
+                            labels.append([1])
+                        else:
+                            labels.append([0])
+                    except KeyError:
+                        labels.append([0])
                 #Save temp files for later concatenation
                 training_seq = np.array([training_seq], dtype=np.uint16)
                 if j == 1: 

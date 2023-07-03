@@ -23,142 +23,14 @@ class Command_line_args(object):
         self.parser.add_argument('chromosomes', nargs='+', help='Provide a list of chromosomes to create training data over (include brackets).')
         self.args = self.parser.parse_args()
 
-def createSeqData(chromosomes, step=200, nuc_context=1000):
+def createPol3Data(chromosomes, dt="training", step=200, nuc_context=1000):
     pol3_bed_cols_names = ["Chromosome", "Start", "End", "Name", "Score", "Strand"]
     pol3_df = pd.read_csv("../data/polr3d.bed", sep="\s+", header=None, names=pol3_bed_cols_names)
-    for chrom in chromosomes:
-        print(chrom+":")
-        print("     Creating necessary directories...")
-        output_dir1 = "../data/tmp_{}_seqData/".format(chrom)
-        output_dir2 = "../data/chr_seqData/"
-        try:
-            if not os.path.exists(output_dir1):
-                os.makedirs(output_dir1)
-        except FileExistsError:
-            continue
-        try:
-            if not os.path.exists(output_dir2):
-                os.makedirs(output_dir2)
-        except FileExistsError:
-            continue
-            
-        #Process chromosome oe df to create training data
-        print("     Processing one-hot encoded dataframe...")
-        chr_df = pd.read_csv("../chroms/oe_chroms/{}.csv".format(chrom))
-        chr_df["Label"] = 0
-        pol3_chr_df = pol3_df[pol3_df["Chromosome"] == "{}".format(chrom)]
-        for row in range(len(pol3_chr_df)):
-            beg_range = pol3_chr_df.iloc[row]["Start"]
-            end_range = pol3_chr_df.iloc[row]["End"]
-            chr_df.loc[beg_range:end_range, "Label"] = 1
-
-        print("     Creating training data. This may take a while...")
-        #Start creating training data
-        labels = []
-        file_names = []
-        final_data = []
-        j = 1
-        #Get first and last non-N index
-        fasta_sequences = SeqIO.parse(open("../chroms/{}.fa".format(chrom)),'fasta')
-        for seq in fasta_sequences:
-            name, sequence = seq.id, str(seq.seq)
-        a_idx = sequence.lower().index("a")
-        c_idx = sequence.lower().index("c")
-        g_idx = sequence.lower().index("g")
-        t_idx = sequence.lower().index("t")
-        chr_start_idx = min(a_idx,c_idx,g_idx,t_idx)
-        a_idx = sequence.lower().rfind("a")
-        c_idx = sequence.lower().rfind("c")
-        g_idx = sequence.lower().rfind("g")
-        t_idx = sequence.lower().rfind("t")
-        chr_end_idx = max(a_idx,c_idx,g_idx,t_idx)
-        for i in range(chr_start_idx, chr_end_idx+1, step):
-            if i <= chr_end_idx:
-                beg_seq = []
-                end_seq = []
-                
-                start_idx = i - nuc_context
-                if start_idx < 0:
-                    start_idx = 0
-                    n_count = (i - nuc_context) * -1
-                    beg_seq = [[0,0,0,0]] * n_count
-                end_idx = i+step+nuc_context
-                if end_idx > len(chr_df):
-                    end_idx = len(chr_df)
-                    n_count = (i+step+nuc_context) - len(chr_df)
-                    end_seq = [[0,0,0,0]] * n_count
-
-                if beg_seq == [] and end_seq == []:
-                    training_seq = chr_df[start_idx:end_idx].drop(columns=["Unnamed: 0", "Label"]).to_numpy()
-                elif beg_seq == [] and len(end_seq) != 0:
-                    training_seq = chr_df[start_idx:end_idx].drop(columns=["Unnamed: 0", "Label"]).to_numpy() + np.array(end_seq)
-                elif len(beg_seq) != 0 and end_seq == []:
-                    training_seq = beg_seq + chr_df[start_idx:end_idx].drop(columns=["Unnamed: 0", "Label"]).values.tolist()
-                #Determine labels    
-                tmp_df = chr_df[start_idx:end_idx]
-                grouped_df = tmp_df.groupby("Label").count().reset_index()
-                try:
-                    if grouped_df[grouped_df["Label"] == 1]["Unnamed: 0"][1] >= 65:
-                        labels.append([1])
-                    else:
-                        labels.append([0])
-                except KeyError:
-                    labels.append([0])
-                #Save temp files for later concatenation
-                training_seq = np.array([training_seq], dtype=np.uint16)
-                if j == 1: 
-                    training_data = training_seq
-                else:
-                    training_data = np.append(training_data, training_seq, axis=0)
-                if j % 50 == 0:
-                    np.savez_compressed("../data/tmp_{}_seqData/tmp_{}.npz".format(chrom, i), training_data)
-                    file_names.append("../data/tmp_{}_seqData/tmp_{}.npz".format(chrom, i))
-                    j = 1
-                else:
-                    j+=1
-        del training_data
-        
-        print("     Finalizing training data...")
-
-        #Open numpy npz files and memmap them to reduce memory usage
-        fpath = "../data/chr_seqData/{}_seqData.dat".format(chrom)
-        rows = 0
-        cols = None
-        dtype = None
-        for data_file in file_names:
-            with np.load(data_file) as data:
-                for item in data.files:
-                    chunk = data[item]
-                    rows += chunk.shape[0]
-                    cols = chunk.shape[1]
-                    elements = chunk.shape[2]
-                    dtype = chunk.dtype
-                
-        merged = np.memmap(fpath, dtype=dtype, mode='w+', shape=(rows, cols, elements))
-        idx = 0
-        for data_file in file_names:
-            with np.load(data_file) as data:
-                for item in data.files:
-                    chunk = data[item]
-                    merged[idx:idx + len(chunk)] = chunk
-                    idx += len(chunk)
-                
-        #Save chr data
-        labels = np.array(labels)
-        fpath2 = "../data/chr_seqData/{}_labelsData.npz".format(chrom)
-        np.savez_compressed(fpath2, labels=labels)
-        
-        #Delete temp directories
-        dir = '../data/tmp_{}_seqData/'.format(chrom)
-        shutil.rmtree(dir)
-        
-        print("Completed {}!".format(chrom))
-        print("Memmap object dimensions:", rows, cols, elements)
-
-    print("Finished creating training data by chromosome!")
-
-def createChipData(chromosomes, step=200, nuc_context=1000):
-    print("Reading in chip files...")
+    rmsk_df = pd.read_csv("../data/mm10_rmsk.bed", sep="\s+", header=None, names=pol3_bed_cols_names)
+    nucOE_df = pd.DataFrame({"Nucleotide": ["a", "c", "g", "t", "n"], "OE": [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[0,0,0,0]]})
+    j = 1
+    
+    print("Reading in ChIP files...")
     chip_dfs = []
     chip_names = []
     chip_bed_cols_names = ["Chromosome", "Start", "End", "Name", "Score", "Strand", "signalValue", "pValue", "qValue", "peak"]
@@ -166,32 +38,40 @@ def createChipData(chromosomes, step=200, nuc_context=1000):
         tmp_chip_df = pd.read_csv(chip, sep="\s+", header=None, names=chip_bed_cols_names)
         chip_dfs.append(tmp_chip_df)
         chip_names.append(chip.split("/")[-1].split(".")[0])
-    
+    del tmp_chip_df
+        
     for chrom in chromosomes:
         print(chrom+":")
         print("     Creating necessary directories...")
-        output_dir1 = "../data/tmp_{}_chipData/".format(chrom)
-        output_dir2 = "../data/chr_chipData/"
-        try:
-            if not os.path.exists(output_dir1):
-                os.makedirs(output_dir1)
-        except FileExistsError:
-            continue
-        try:
-            if not os.path.exists(output_dir2):
-                os.makedirs(output_dir2)
-        except FileExistsError:
-            continue
+        output_dir1 = "../data/mlData/"
+        if not os.path.exists(output_dir1):
+            os.makedirs(output_dir1)
             
         #Process chromosome oe df to create training data
-        print("     Reading in one-hot encoded dataframe...")
-        chr_df = pd.read_csv("../chroms/oe_chroms/{}.csv".format(chrom))
-        chr_df_length = len(chr_df)
-        del chr_df
-            
+        print("     Processing FASTA sequence...")
+        fasta_sequences = SeqIO.parse(open("../chroms/{}.fa".format(chrom)),'fasta')
+        for seq in fasta_sequences:
+            name, sequence = seq.id, str(seq.seq).lower()
+        del fasta_sequences
+        chr_df = pd.DataFrame({"Nucleotide": list(sequence)})
+        chr_df["Label"] = 0
+        pol3_chr_df = pol3_df[pol3_df["Chromosome"] == "{}".format(chrom)]
+        rmsk_chr_df = rmsk_df[rmsk_df["Chromosome"] == "{}".format(chrom)]
+        
+        for row in range(len(rmsk_chr_df)):
+            beg_range = rmsk_chr_df.iloc[row]["Start"]
+            end_range = rmsk_chr_df.iloc[row]["End"]
+            chr_df.loc[beg_range:end_range, "Label"] = 1
+        for row in range(len(pol3_chr_df)):
+            beg_range = pol3_chr_df.iloc[row]["Start"]
+            end_range = pol3_chr_df.iloc[row]["End"]
+            chr_df.loc[beg_range:end_range, "Label"] = 2
+        del pol3_chr_df
+        del rmsk_chr_df
+                        
         #Create ChIP df that is ready to be converted to numpy training data
         print("     Processing ChIP data...")
-        chip_df = pd.DataFrame(index=np.arange(chr_df_length)).reset_index().drop(columns="index")
+        chip_df = pd.DataFrame(index=np.arange(len(chr_df))).reset_index().drop(columns="index")
         chip_idx = 0
         for chip in chip_dfs:
             tmp_chip_chr_df = chip[chip["Chromosome"] == "{}".format(chrom)]
@@ -202,104 +82,132 @@ def createChipData(chromosomes, step=200, nuc_context=1000):
                 end_range = tmp_chip_chr_df.iloc[row]["End"]
                 chip_df.loc[beg_range:end_range, chip_names[chip_idx]] = tmp_chip_chr_df.iloc[row]["signalValue"]
             chip_idx+=1
-                        
 
-        print("     Creating training data. This may take a while...")
+        print("     Creating data for model. This may take a while...")
         #Start creating training data
-        file_names = []
-        final_data = []
-        j = 1
+        labels = []
         #Get first and last non-N index
-        fasta_sequences = SeqIO.parse(open("../chroms/{}.fa".format(chrom)),'fasta')
-        for seq in fasta_sequences:
-            name, sequence = seq.id, str(seq.seq)
-        a_idx = sequence.lower().index("a")
-        c_idx = sequence.lower().index("c")
-        g_idx = sequence.lower().index("g")
-        t_idx = sequence.lower().index("t")
+        a_idx = sequence.index("a")
+        c_idx = sequence.index("c")
+        g_idx = sequence.index("g")
+        t_idx = sequence.index("t")
         chr_start_idx = min(a_idx,c_idx,g_idx,t_idx)
-        a_idx = sequence.lower().rfind("a")
-        c_idx = sequence.lower().rfind("c")
-        g_idx = sequence.lower().rfind("g")
-        t_idx = sequence.lower().rfind("t")
+        a_idx = sequence.rfind("a")
+        c_idx = sequence.rfind("c")
+        g_idx = sequence.rfind("g")
+        t_idx = sequence.rfind("t")
         chr_end_idx = max(a_idx,c_idx,g_idx,t_idx)
         for i in range(chr_start_idx, chr_end_idx+1, step):
             if i <= chr_end_idx:
                 beg_seq = []
                 end_seq = []
                 
+                beg_chip = []
+                end_chip = []
+                
                 start_idx = i - nuc_context
                 if start_idx < 0:
                     start_idx = 0
                     n_count = (i - nuc_context) * -1
-                    beg_seq = [[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]] * n_count
+                    beg_seq = [[0,0,0,0]] * n_count
+                    beg_chip = [[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]] * n_count
                 end_idx = i+step+nuc_context
-                if end_idx > chr_df_length:
-                    end_idx = chr_df_length
-                    n_count = (i+step+nuc_context) - chr_df_length
-                    end_seq = [[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]] * n_count
-
-                if beg_seq == [] and end_seq == []:
-                    training_seq = chip_df[start_idx:end_idx].to_numpy()
-                elif beg_seq == [] and len(end_seq) != 0:
-                    training_seq = chip_df[start_idx:end_idx].to_numpy() + np.array(end_seq)
-                elif len(beg_seq) != 0 and end_seq == []:
-                    training_seq = beg_seq + chip_df[start_idx:end_idx].values.tolist()
-
-                #Save temp files for later concatenation
-                training_seq = np.array([training_seq], dtype=np.float32)
-                if j == 1: 
-                    training_data = training_seq
-                else:
-                    training_data = np.append(training_data, training_seq, axis=0)
-                if j % 50 == 0:
+                if end_idx > len(chr_df):
+                    end_idx = len(chr_df)
+                    n_count = (i+step+nuc_context) - len(chr_df)
+                    end_seq = [[0,0,0,0]] * n_count
+                    end_chip = [[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]] * n_count
                     
-                    np.savez_compressed("../data/tmp_{}_chipData/tmp_{}.npz".format(chrom, i), training_data)
-                    file_names.append("../data/tmp_{}_chipData/tmp_{}.npz".format(chrom, i))
-                    j = 1
-                else:
-                    j+=1
-        del training_data
-        
-        print("     Finalizing training data...")
-        #Open numpy npz files and memmap them to reduce memory usage
-        fpath = "../data/chr_chipData/{}_chipData.dat".format(chrom)
-        rows = 0
-        cols = None
-        dtype = None
-        for data_file in file_names:
-            with np.load(data_file) as data:
-                for item in data.files:
-                    chunk = data[item]
-                    rows += chunk.shape[0]
-                    cols = chunk.shape[1]
-                    elements = chunk.shape[2]
-                    dtype = chunk.dtype
-                
-        merged = np.memmap(fpath, dtype=dtype, mode='w+', shape=(rows, cols, elements))
-        idx = 0
-        for data_file in file_names:
-            with np.load(data_file) as data:
-                for item in data.files:
-                    chunk = data[item]
-                    merged[idx:idx + len(chunk)] = chunk
-                    idx += len(chunk)
-        
-        #Delete temp directories
-        dir = '../data/tmp_{}_chipData/'.format(chrom)
-        shutil.rmtree(dir)
-        
-        print("Completed {}!".format(chrom))
-        print("Memmap object dimensions:", rows, cols, elements)
+                #Determine labels    
+                tmp_df = chr_df[i:i+step]
+                grouped_df = tmp_df.groupby("Label").count().reset_index()
+                grouped_df.index = grouped_df["Label"]
+                try:
+                    if grouped_df[grouped_df["Label"] == 2]["Nucleotide"][2] >= 65:
+                        label = [1]
+                    elif grouped_df[grouped_df["Label"] == 1]["Nucleotide"][1] >= 65:
+                        label = [0]
+                    else:
+                        label = [2]
+                except KeyError:
+                    try:
+                        if grouped_df[grouped_df["Label"] == 1]["Nucleotide"][1] >= 65:
+                            label = [0]
+                        else:
+                            label = [2]
+                    except KeyError:
+                        label = [2]
+                del tmp_df
+                del grouped_df
+                        
+                if label == [0] or label == [1]:
+                    #Used to randomly select which nucleotide sequences with label [0] are in datasets
+                    if label == [0]:
+                        random_num = random.randint(-1000,1)
+                    if (label == [0] and random_num > 0) or (label == [1]):                             
+                        curr_chr_df = chr_df[start_idx:end_idx].merge(nucOE_df, on=["Nucleotide"], how="left")
 
-    print("Finished creating training data by chromosome!")
+                        if beg_seq == [] and end_seq == []:
+                            curr_seq = curr_chr_df["OE"].tolist()
+                        elif beg_seq == [] and len(end_seq) != 0:
+                            curr_seq = curr_chr_df["OE"].tolist() + end_seq
+                        elif len(beg_seq) != 0 and end_seq == []:
+                            curr_seq = beg_seq + curr_chr_df["OE"].tolist()
+                        del curr_chr_df
+
+                        if beg_chip == [] and end_chip == []:
+                            curr_chip = chip_df[start_idx:end_idx].values.tolist()
+                        elif beg_chip == [] and len(end_chip) != 0:
+                            curr_chip = chip_df[start_idx:end_idx].values.tolist() + end_chip
+                        elif len(beg_chip) != 0 and end_chip == []:
+                            curr_chip = beg_chip + chip_df[start_idx:end_idx].values.tolist()
+
+                        #Save current sequences
+                        curr_seq = np.array([curr_seq], dtype=np.uint16)
+                        curr_chip = np.array([curr_chip], dtype=np.float64)
+                        labels.append(label)
+                        if j == 1: 
+                            seq_data = curr_seq
+                            chip_data = curr_chip
+                            j+=1
+                        else:
+                            seq_data = np.append(seq_data, curr_seq, axis=0)
+                            chip_data = np.append(chip_data, curr_chip, axis=0)
+                        del curr_seq
+                        del curr_chip
+
+        print("Completed {}!".format(chrom))
+
+    print("Finalizing data...")
+    labels = np.array(labels)
+    true_idx = np.where(labels == [1])[0]
+    false_idx = np.where(labels == [0])[0]
+
+    #Shuffle and subset indeces for training and testing datasets
+
+    np.random.shuffle(false_idx)
+    false_idx = false_idx[:len(true_idx)]
+    seq_data = np.append(seq_data[true_idx], seq_data[false_idx], axis=0)
+    chip_data = np.append(chip_data[true_idx], chip_data[false_idx], axis=0)
+    
+    labels = np.append(labels[true_idx], labels[false_idx], axis=0)
+    
+    final_idx = np.random.permutation(len(labels))
+    seq_data = seq_data[final_idx]
+    chip_data = chip_data[final_idx]
+    labels = labels[final_idx]
+    
+    np.savez_compressed("../data/mlData/{}_seqData.npz".format(dt), dna=seq_data, label=labels)
+    np.savez_compressed("../data/mlData/{}_chipData.npz".format(dt), chip=chip_data, label=labels)
+        
+    print("Finished creating data!")
+        
 
 def main():
 
     arguments = Command_line_args()
 
-    createSeqData(arguments.args.chromosomes, step=200, nuc_context=1000)
-    createChipData(arguments.args.chromosomes, step=200, nuc_context=1000)
+    createPol3Data(arguments.args.chromosomes, dt="training", step=200, nuc_context=1000)
 
 if __name__ == "__main__":
 	main()
